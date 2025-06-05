@@ -79,9 +79,15 @@ void clear_screen() {
 unsigned int print_to_screen(char *string) {
     CHAR16 buf[512];
     int len = 0;
-    while (string[len] && len < 511) {
-        buf[len] = (CHAR16)string[len];
-        len++;
+    for (int i = 0; string[i] && len < 510; i++) {
+        if (string[i] == '\n') {
+            buf[len++] = L'\r';
+            if (len >= 511)
+                break;
+            buf[len++] = L'\n';
+        } else {
+            buf[len++] = (CHAR16)string[i];
+        }
     }
     buf[len] = L'\0';
     uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buf);
