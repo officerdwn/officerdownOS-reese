@@ -5,7 +5,8 @@ This fork drops the original BIOS mode and runs only as a UEFI application.
 ## Building
 
 Install the `gnu-efi` development package and run `make` to produce
-`officerdownOS.efi`.
+`officerdownOS.efi`. Booting this image will start the original
+text-based kernel in the UEFI console.
 
 ## Running with QEMU
 

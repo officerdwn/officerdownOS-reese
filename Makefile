@@ -6,7 +6,8 @@ CFLAGS = -I/usr/include/efi -I/usr/include/efi/x86_64 \
     -DEFI_FUNCTION_WRAPPER -fshort-wchar -mno-red-zone -fpie \
     -fno-stack-protector -fno-asynchronous-unwind-tables
 
-OBJS = uefi_main.o
+OBJS = uefi_main.o kernel.o
+TARGET = officerdownOS.efi
 TARGET = officerdownOS.efi
 
 all: $(TARGET)
