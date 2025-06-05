@@ -1,40 +1,18 @@
 #include "kernel.h"
 #include "screen.h"
+#include <efi.h>
+#include <efilib.h>
 
 void display_ui(void);
 void display_about(void);
 void display_calculator(void);
 
 // Global state
-int shift = 0;
-int caps_lock = 0;
 int previous_result = 0;
+void init_uefi(EFI_SYSTEM_TABLE *SystemTable) {
+    /* gnu-efi sets ST for us */
+}
 
-#define TEXT_WHITE 0x07
-#define KEYBOARD_PORT 0x60
-#define MAX_LINEAS 25
-
-char *video_memory = (char *)0xb8000;
-unsigned int cursor_line = 0;
-
-// ------------------------ Keyboard Mappings (Scancode to ASCII) ------------------------
-char scancode_to_ascii[128] = {
-    0, 27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
-    '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
-    0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
-    0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0,
-    '*', 0, ' '
-};
-
-char shifted_scancode_to_ascii[128] = {
-    0, 27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
-    '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
-    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',
-    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0,
-    '*', 0, ' '
-};
-
-// ------------------------ Utility Functions (atoi, itoa, strcmp) ------------------------
 
 int atoi(const char *str) {
     int result = 0, sign = 1;
@@ -96,146 +74,56 @@ void kernel_main() {
 }
 
 void clear_screen() {
-    for (unsigned int i = 0; i < (80 * 25 * 2); i += 2) {
-        video_memory[i] = ' ';
-        video_memory[i + 1] = TEXT_WHITE;
-    }
-    cursor_line = 0;
+    uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 }
-
-void scroll_screen() {
-    for (int row = 1; row < MAX_LINEAS; row++) {
-        for (int col = 0; col < 80; col++) {
-            int from = (row * 80 + col) * 2;
-            int to = ((row - 1) * 80 + col) * 2;
-            video_memory[to] = video_memory[from];
-            video_memory[to + 1] = video_memory[from + 1];
-        }
-    }
-
-    // Clear last line
-    for (int col = 0; col < 80; col++) {
-        int pos = ((MAX_LINEAS - 1) * 80 + col) * 2;
-        video_memory[pos] = ' ';
-        video_memory[pos + 1] = TEXT_WHITE;
-    }
-
-    cursor_line = MAX_LINEAS - 1;
-}
-
 unsigned int print_to_screen(char *string) {
-    int col = 0; // 🔧 Reset every time
-
-    while (*string != 0) {
-        if (*string == '\n') {
-            cursor_line++;
-            col = 0;
-            if (cursor_line >= MAX_LINEAS) {
-                scroll_screen();
-            }
-        } else {
-            int pos = (cursor_line * 80 + col) * 2;
-            video_memory[pos] = *string;
-            video_memory[pos + 1] = TEXT_WHITE;
-            col++;
-
-            if (col >= 80) {
-                cursor_line++;
-                col = 0;
-                if (cursor_line >= MAX_LINEAS) {
-                    scroll_screen();
-                }
-            }
-        }
-
-        string++;
+    CHAR16 buf[512];
+    int len = 0;
+    while (string[len] && len < 511) {
+        buf[len] = (CHAR16)string[len];
+        len++;
     }
-
-    update_cursor(cursor_line, col);
-    return 1;
+    buf[len] = L'\0';
+    uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, buf);
+    return len;
 }
-
-
-
-
 
 void update_cursor(int row, int col) {
-    unsigned short position = (row * 80) + col;
-    outb(0x3D4, 0x0F);
-    outb(0x3D5, (unsigned char)(position & 0xFF));
-    outb(0x3D4, 0x0E);
-    outb(0x3D5, (unsigned char)((position >> 8) & 0xFF));
+    uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, col, row);
 }
 
 void get_string(char *buffer, int max_length) {
+
     int index = 0;
-    static unsigned int col = 0;
-
-    if (cursor_line >= MAX_LINEAS) scroll_screen();
-    int row = cursor_line;
-    col = 0;
-
-    update_cursor(row, col);
-
-    while (1) {
+    while (index < max_length - 1) {
         char key = get_input();
-
-        if (key == '\n') {
+        if (key == '\r' || key == '\n') {
             buffer[index] = '\0';
-            cursor_line++;
-            if (cursor_line >= MAX_LINEAS) scroll_screen();
-            update_cursor(cursor_line, 0);
+            print_to_screen("\n");
             return;
         } else if (key == '\b') {
-            if (index > 0 && col > 0) {
+            if (index > 0) {
                 index--;
-                col--;
-                int pos = (row * 80 + col) * 2;
-                video_memory[pos] = ' ';
-                video_memory[pos + 1] = TEXT_WHITE;
-                update_cursor(row, col);
+                print_to_screen("\b \b");
             }
-        } else if (index < max_length - 1) {
+        } else if (key >= ' ' && key <= '~') {
             buffer[index++] = key;
-            int pos = (row * 80 + col) * 2;
-            video_memory[pos] = key;
-            video_memory[pos + 1] = TEXT_WHITE;
-            col++;
-            update_cursor(row, col);
+            char out[2] = {key, 0};
+            print_to_screen(out);
         }
     }
+    buffer[index] = '\0';
+    print_to_screen("\n");
 }
 
 char get_input() {
-    char key;
-
-    while (1) {
-        if (inb(0x64) & 0x1) {
-            unsigned char scancode = inb(0x60);
-
-            if (scancode == 0x2A || scancode == 0x36) { shift = 1; continue; }
-            if (scancode == 0xAA || scancode == 0xB6) { shift = 0; continue; }
-            if (scancode == 0x3A) { caps_lock = !caps_lock; continue; }
-            if (scancode & 0x80) { continue; }
-
-            switch (scancode) {
-                case 0x01: return 27;   // ESC
-                case 0x4B: return '<';  // Left
-                case 0x4D: return '>';  // Right
-                case 0x48: return '^';  // Up
-                case 0x50: return 'v';  // Down
-                case 0x53: return 127;  // Delete
-                case 0x3B: return 'F';  // F1
-                case 0x3C: return 'G';  // F2
-            }
-
-            int is_letter = (scancode >= 0x10 && scancode <= 0x32);
-            int use_shifted = shift || (caps_lock && is_letter);
-
-            key = use_shifted ? shifted_scancode_to_ascii[scancode] : scancode_to_ascii[scancode];
-            if (key != 0) return key;
-        }
-    }
+    EFI_INPUT_KEY key;
+    UINTN index;
+    uefi_call_wrapper(ST->BootServices->WaitForEvent, 3, 1, &ST->ConIn->WaitForKey, &index);
+    uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key);
+    if (key.UnicodeChar < 0x100)
+        return (char)key.UnicodeChar;
+    return 0;
 }
 
 // ------------------------ UI Screens (Main Menu, About, Calculator) ------------------------
@@ -243,7 +131,7 @@ char get_input() {
 void display_ui() {
     char input_buffer[20];
 
-    clear_screen(); // Reset screen and cursor_line = 0
+    clear_screen();
 
     print_to_screen("                               officerdownOS\n");
     print_to_screen("-------------------------------------------------------------------------------\n");
@@ -288,7 +176,6 @@ void display_about() {
     print_to_screen("  Committed 05/27/2025\n");
     print_to_screen("\nPress 'b' to go back to the main menu.");
 
-    update_cursor(cursor_line, 0);
     get_string(about_input, sizeof(about_input));
 
     if (strcmp(about_input, "b") == 0) {
