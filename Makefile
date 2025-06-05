@@ -8,6 +8,7 @@ CFLAGS = -I/usr/include/efi -I/usr/include/efi/x86_64 \
 
 OBJS = uefi_main.o kernel.o
 TARGET = officerdownOS.efi
+TARGET = officerdownOS.efi
 
 all: $(TARGET)
 
