@@ -6,3 +6,4 @@ void clear_screen();
 unsigned int print_to_screen(char *string);
 
 #endif
+
