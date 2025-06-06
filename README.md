@@ -10,12 +10,4 @@ text-based kernel in the UEFI console.
 
 ## Running with QEMU
 
-You can test the binary using the OVMF firmware that ships with most
-Linux distributions:
-
-```bash
-qemu-system-x86_64 \
-    -drive if=pflash,format=raw,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd \
-    -drive if=pflash,format=raw,file=/usr/share/OVMF/OVMF_VARS_4M.fd \
-    -drive format=raw,file=fat:rw:.
-```
+make sure to build the img with `make img` and use `make run` to run it.
