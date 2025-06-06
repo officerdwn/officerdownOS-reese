@@ -177,9 +177,8 @@ void display_about() {
     clear_screen();
     print_to_screen("                                      About\n");
     print_to_screen("-------------------------------------------------------------------------------\n");
-    print_to_screen("  officerdownOS Main Branch v0.1.5\n");
-    print_to_screen("  officerdownOS Rocky v1.0.0\n");
-    print_to_screen("  Committed 05/27/2025\n");
+    print_to_screen("  officerdownOS Reese v0.1.5\n");
+    print_to_screen("  Committed 06/05/2025\n");
     print_to_screen("\nPress 'b' to go back to the main menu.");
 
     get_string(about_input, sizeof(about_input));
@@ -190,6 +189,7 @@ void display_about() {
         print_to_screen("\nInvalid input. Press 'b' to go back.");
     }
 }
+
 
 void display_calculator() {
     char input[10];
